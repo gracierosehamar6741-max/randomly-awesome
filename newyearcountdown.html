@@ -31,23 +31,19 @@
       margin-bottom: 12px;
     }
 
-    .offset {
+    .offsetLine {
       font-size: 22px;
-      opacity: 0.85;
+      opacity: 0.9;
       margin-bottom: 18px;
+      max-width: 1000px;
+      line-height: 1.35;
     }
 
     .countdown {
-      font-size: 88px;
-      font-weight: bold;
-      letter-spacing: 4px;
+      font-size: 84px;
+      font-weight: 800;
+      letter-spacing: 3px;
       font-variant-numeric: tabular-nums;
-    }
-
-    .hint {
-      margin-top: 25px;
-      font-size: 14px;
-      opacity: 0.6;
     }
 
     .start-btn {
@@ -60,9 +56,14 @@
       border-radius: 6px;
       cursor: pointer;
     }
+    .start-btn:hover { background: #ddd; }
 
-    .start-btn:hover {
-      background: #ddd;
+    .hint {
+      margin-top: 22px;
+      font-size: 14px;
+      opacity: 0.6;
+      max-width: 980px;
+      line-height: 1.45;
     }
   </style>
 </head>
@@ -70,112 +71,141 @@
 <body>
   <div class="container">
     <h1>New Year’s Countdown</h1>
-    <div class="offset" id="offset">Loading…</div>
-    <div class="countdown" id="timer">--:--:--</div>
+    <div class="offsetLine" id="offsetLine">Loading…</div>
+    <div class="countdown" id="timer">--d --:--:--</div>
 
     <button class="start-btn" id="startAudio">▶ Start Music</button>
 
     <div class="hint">
-      Press <b>SPACE</b> to pause / unpause music
+      Press <b>SPACE</b> to pause / unpause music<br/>
+      Uses real-world fixed UTC offsets (no experimental offsets)
     </div>
   </div>
 
   <script>
-    /* -------------------------
-       AUDIO (BACKGROUND MUSIC)
-    -------------------------- */
-
+    /* -------- AUDIO -------- */
     let audioUnlocked = false;
-
-    // 👉 Replace with YOUR music file (MP3 recommended)
     const bgMusic = new Audio("music.mp3");
     bgMusic.loop = true;
     bgMusic.volume = 0.5;
 
-    const startBtn = document.getElementById("startAudio");
-
-    startBtn.addEventListener("click", () => {
+    document.getElementById("startAudio").addEventListener("click", () => {
       bgMusic.play().then(() => {
         audioUnlocked = true;
-        startBtn.style.display = "none";
-      }).catch(err => {
-        console.warn("Audio blocked:", err);
+        document.getElementById("startAudio").style.display = "none";
       });
     });
 
-    // SPACEBAR toggle
-    document.addEventListener("keydown", (e) => {
+    document.addEventListener("keydown", e => {
       if (e.code === "Space") {
         e.preventDefault();
-
         if (!audioUnlocked) return;
-
-        if (bgMusic.paused) {
-          bgMusic.play();
-        } else {
-          bgMusic.pause();
-        }
+        bgMusic.paused ? bgMusic.play() : bgMusic.pause();
       }
     });
 
-    /* -------------------------
-       NEW YEAR COUNTDOWN LOGIC
-    -------------------------- */
+    /* -------- OFFSETS -------- */
+    const offsetSet = new Set();
 
-    // UTC offsets from +14 to -10
-    const OFFSETS = [];
-    for (let i = 14; i >= -10; i--) OFFSETS.push(i);
+    // Whole-hour offsets
+    for (let h = 14; h >= -10; h--) offsetSet.add(h * 60);
 
-    function offsetLabel(o) {
-      if (o > 0) return `UTC +${o}`;
-      if (o < 0) return `UTC ${o}`;
-      return `UTC ±0`;
+    // Common real-world fractional offsets
+    [
+      10*60 + 30, // Lord Howe
+      9*60  + 30, // Adelaide / Darwin
+      8*60  + 45, // Eucla
+      6*60  + 30, // Myanmar
+      5*60  + 45, // Nepal
+      5*60  + 30, // India / Sri Lanka
+      4*60  + 30, // Afghanistan
+      3*60  + 30, // Iran
+      -3*60 - 30, // Newfoundland
+      -9*60 - 30  // Marquesas
+    ].forEach(m => offsetSet.add(m));
+
+    const OFFSET_CITY = {
+      840: "Kiritimati",
+      780: "Auckland",
+      720: "Auckland",
+      660: "Nouméa",
+      630: "Lord Howe Island",
+      600: "Brisbane",
+      570: "Adelaide / Darwin",
+      540: "Tokyo",
+      525: "Eucla",
+      480: "Shanghai",
+      420: "Bangkok",
+      390: "Yangon",
+      360: "Dhaka",
+      345: "Kathmandu",
+      330: "New Delhi",
+      300: "Karachi",
+      270: "Kabul",
+      240: "Dubai",
+      210: "Tehran",
+      180: "Moscow",
+      120: "Johannesburg",
+      60:  "Lagos",
+      0:   "London",
+      -60: "Praia",
+      -120:"South Georgia",
+      -180:"São Paulo",
+      -210:"St. John’s",
+      -240:"Santiago",
+      -300:"New York",
+      -360:"Chicago",
+      -420:"Denver",
+      -480:"Los Angeles",
+      -540:"Anchorage",
+      -570:"Marquesas",
+      -600:"Honolulu"
+    };
+
+    const OFFSETS = Array.from(offsetSet).map(mins => ({
+      mins,
+      city: OFFSET_CITY[mins] || "Representative City"
+    }));
+
+    function formatOffset(mins) {
+      const sign = mins >= 0 ? "+" : "-";
+      const abs = Math.abs(mins);
+      return `UTC ${sign}${String(Math.floor(abs/60)).padStart(2,"0")}:${String(abs%60).padStart(2,"0")}`;
     }
 
-    function getNextNewYearUtcMs(offset) {
+    function getNextNewYearUtcMs(mins) {
       const now = Date.now();
-
-      // Convert UTC → local offset time
-      const localNow = new Date(now + offset * 3600000);
-
-      // Always target NEXT Jan 1
-      const targetYear = localNow.getUTCFullYear() + 1;
-
-      // Jan 1 00:00 in that offset → convert back to UTC
-      return {
-        targetUtc: Date.UTC(targetYear, 0, 1, 0, 0, 0) - offset * 3600000,
-        targetYear
+      const local = new Date(now + mins * 60000);
+      const year = local.getUTCFullYear() + 1;
+      return { 
+        targetUtc: Date.UTC(year, 0, 1) - mins * 60000,
+        year
       };
     }
 
     function formatDHMS(ms) {
-      ms = Math.max(0, ms);
-      const total = Math.floor(ms / 1000);
-      const days = Math.floor(total / 86400);
-      const hrs = String(Math.floor((total % 86400) / 3600)).padStart(2, "0");
-      const mins = String(Math.floor((total % 3600) / 60)).padStart(2, "0");
-      const secs = String(total % 60).padStart(2, "0");
-      return `${days}d ${hrs}:${mins}:${secs}`;
+      const t = Math.max(0, Math.floor(ms / 1000));
+      const d = Math.floor(t / 86400);
+      const h = String(Math.floor((t % 86400) / 3600)).padStart(2,"0");
+      const m = String(Math.floor((t % 3600) / 60)).padStart(2,"0");
+      const s = String(t % 60).padStart(2,"0");
+      return `${d}d ${h}:${m}:${s}`;
     }
 
     function tick() {
       const now = Date.now();
-      let soonest = null;
+      let next = null;
 
-      OFFSETS.forEach(offset => {
-        const { targetUtc, targetYear } = getNextNewYearUtcMs(offset);
+      OFFSETS.forEach(o => {
+        const { targetUtc, year } = getNextNewYearUtcMs(o.mins);
         const diff = targetUtc - now;
-
-        if (!soonest || diff < soonest.diff) {
-          soonest = { offset, diff, targetYear };
-        }
+        if (!next || diff < next.diff) next = { ...o, diff, year };
       });
 
-      document.getElementById("offset").textContent =
-        `${offsetLabel(soonest.offset)} reaches New Year ${soonest.targetYear} next`;
+      document.getElementById("offsetLine").textContent =
+        `${formatOffset(next.mins)} — ${next.city} reaches New Year ${next.year} next`;
 
-      document.getElementById("timer").textContent =
-        formatDHMS(soonest.diff);
+      document.getElementById("timer").textContent = formatDHMS(next.diff);
     }
 
     tick();
