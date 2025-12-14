@@ -78,7 +78,7 @@
 
     <div class="hint">
       Press <b>SPACE</b> to pause / unpause music<br/>
-      Uses real-world fixed UTC offsets (no experimental offsets)
+      Uses fixed UTC offsets (whole hours + common half/quarter-hour offsets)
     </div>
   </div>
 
@@ -93,6 +93,8 @@
       bgMusic.play().then(() => {
         audioUnlocked = true;
         document.getElementById("startAudio").style.display = "none";
+      }).catch(() => {
+        // If blocked, the page still works; audio just won't start.
       });
     });
 
@@ -107,7 +109,7 @@
     /* -------- OFFSETS -------- */
     const offsetSet = new Set();
 
-    // Whole-hour offsets
+    // Whole-hour offsets (+14 to -10)
     for (let h = 14; h >= -10; h--) offsetSet.add(h * 60);
 
     // Common real-world fractional offsets
@@ -124,61 +126,64 @@
       -9*60 - 30  // Marquesas
     ].forEach(m => offsetSet.add(m));
 
+    // IMPORTANT: keys are strings so negatives are valid
     const OFFSET_CITY = {
-      840: "Kiritimati",
-      780: "Auckland",
-      720: "Auckland",
-      660: "Nouméa",
-      630: "Lord Howe Island",
-      600: "Brisbane",
-      570: "Adelaide / Darwin",
-      540: "Tokyo",
-      525: "Eucla",
-      480: "Shanghai",
-      420: "Bangkok",
-      390: "Yangon",
-      360: "Dhaka",
-      345: "Kathmandu",
-      330: "New Delhi",
-      300: "Karachi",
-      270: "Kabul",
-      240: "Dubai",
-      210: "Tehran",
-      180: "Moscow",
-      120: "Johannesburg",
-      60:  "Lagos",
-      0:   "London",
-      -60: "Praia",
-      -120:"South Georgia",
-      -180:"São Paulo",
-      -210:"St. John’s",
-      -240:"Santiago",
-      -300:"New York",
-      -360:"Chicago",
-      -420:"Denver",
-      -480:"Los Angeles",
-      -540:"Anchorage",
-      -570:"Marquesas",
-      -600:"Honolulu"
+      "840": "Kiritimati",
+      "780": "Auckland",
+      "720": "Auckland",
+      "660": "Nouméa",
+      "630": "Lord Howe Island",
+      "600": "Brisbane",
+      "570": "Adelaide / Darwin",
+      "540": "Tokyo",
+      "525": "Eucla",
+      "480": "Shanghai",
+      "420": "Bangkok",
+      "390": "Yangon",
+      "360": "Dhaka",
+      "345": "Kathmandu",
+      "330": "New Delhi",
+      "300": "Karachi",
+      "270": "Kabul",
+      "240": "Dubai",
+      "210": "Tehran",
+      "180": "Moscow",
+      "120": "Johannesburg",
+      "60":  "Lagos",
+      "0":   "London",
+      "-60":  "Praia",
+      "-120": "South Georgia",
+      "-180": "São Paulo",
+      "-210": "St. John's (Newfoundland)",
+      "-240": "Santiago",
+      "-300": "New York",
+      "-360": "Chicago",
+      "-420": "Denver",
+      "-480": "Los Angeles",
+      "-540": "Anchorage",
+      "-570": "Marquesas",
+      "-600": "Honolulu"
     };
 
     const OFFSETS = Array.from(offsetSet).map(mins => ({
       mins,
-      city: OFFSET_CITY[mins] || "Representative City"
+      city: OFFSET_CITY[String(mins)] || "Representative city"
     }));
 
     function formatOffset(mins) {
       const sign = mins >= 0 ? "+" : "-";
       const abs = Math.abs(mins);
-      return `UTC ${sign}${String(Math.floor(abs/60)).padStart(2,"0")}:${String(abs%60).padStart(2,"0")}`;
+      const hh = String(Math.floor(abs / 60)).padStart(2, "0");
+      const mm = String(abs % 60).padStart(2, "0");
+      return `UTC ${sign}${hh}:${mm}`;
     }
 
     function getNextNewYearUtcMs(mins) {
       const now = Date.now();
       const local = new Date(now + mins * 60000);
       const year = local.getUTCFullYear() + 1;
-      return { 
-        targetUtc: Date.UTC(year, 0, 1) - mins * 60000,
+      return {
+        targetUtc: Date.UTC(year, 0, 1, 0, 0, 0) - mins * 60000,
         year
       };
     }
@@ -196,11 +201,11 @@
       const now = Date.now();
       let next = null;
 
-      OFFSETS.forEach(o => {
+      for (const o of OFFSETS) {
         const { targetUtc, year } = getNextNewYearUtcMs(o.mins);
         const diff = targetUtc - now;
         if (!next || diff < next.diff) next = { ...o, diff, year };
-      });
+      }
 
       document.getElementById("offsetLine").textContent =
         `${formatOffset(next.mins)} — ${next.city} reaches New Year ${next.year} next`;
