@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Global New Year Countdown</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background: black;
+      color: white;
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    .container {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 24px;
+    }
+
+    h1 {
+      font-size: 42px;
+      letter-spacing: 2px;
+      margin-bottom: 12px;
+    }
+
+    .offset {
+      font-size: 22px;
+      opacity: 0.85;
+      margin-bottom: 18px;
+    }
+
+    .countdown {
+      font-size: 88px;
+      font-weight: bold;
+      letter-spacing: 4px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .hint {
+      margin-top: 25px;
+      font-size: 14px;
+      opacity: 0.6;
+    }
+
+    .start-btn {
+      margin-top: 30px;
+      padding: 14px 26px;
+      font-size: 18px;
+      background: white;
+      color: black;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .start-btn:hover {
+      background: #ddd;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <h1>New Year’s Countdown</h1>
+    <div class="offset" id="offset">Loading…</div>
+    <div class="countdown" id="timer">--:--:--</div>
+
+    <button class="start-btn" id="startAudio">▶ Start Music</button>
+
+    <div class="hint">
+      Press <b>SPACE</b> to pause / unpause music
+    </div>
+  </div>
+
+  <script>
+    /* -------------------------
+       AUDIO (BACKGROUND MUSIC)
+    -------------------------- */
+
+    let audioUnlocked = false;
+
+    // 👉 Replace with YOUR music file (MP3 recommended)
+    const bgMusic = new Audio("music.mp3");
+    bgMusic.loop = true;
+    bgMusic.volume = 0.5;
+
+    const startBtn = document.getElementById("startAudio");
+
+    startBtn.addEventListener("click", () => {
+      bgMusic.play().then(() => {
+        audioUnlocked = true;
+        startBtn.style.display = "none";
+      }).catch(err => {
+        console.warn("Audio blocked:", err);
+      });
+    });
+
+    // SPACEBAR toggle
+    document.addEventListener("keydown", (e) => {
+      if (e.code === "Space") {
+        e.preventDefault();
+
+        if (!audioUnlocked) return;
+
+        if (bgMusic.paused) {
+          bgMusic.play();
+        } else {
+          bgMusic.pause();
+        }
+      }
+    });
+
+    /* -------------------------
+       NEW YEAR COUNTDOWN LOGIC
+    -------------------------- */
+
+    // UTC offsets from +14 to -10
+    const OFFSETS = [];
+    for (let i = 14; i >= -10; i--) OFFSETS.push(i);
+
+    function offsetLabel(o) {
+      if (o > 0) return `UTC +${o}`;
+      if (o < 0) return `UTC ${o}`;
+      return `UTC ±0`;
+    }
+
+    function getNextNewYearUtcMs(offset) {
+      const now = Date.now();
+
+      // Convert UTC → local offset time
+      const localNow = new Date(now + offset * 3600000);
+
+      // Always target NEXT Jan 1
+      const targetYear = localNow.getUTCFullYear() + 1;
+
+      // Jan 1 00:00 in that offset → convert back to UTC
+      return {
+        targetUtc: Date.UTC(targetYear, 0, 1, 0, 0, 0) - offset * 3600000,
+        targetYear
+      };
+    }
+
+    function formatDHMS(ms) {
+      ms = Math.max(0, ms);
+      const total = Math.floor(ms / 1000);
+      const days = Math.floor(total / 86400);
+      const hrs = String(Math.floor((total % 86400) / 3600)).padStart(2, "0");
+      const mins = String(Math.floor((total % 3600) / 60)).padStart(2, "0");
+      const secs = String(total % 60).padStart(2, "0");
+      return `${days}d ${hrs}:${mins}:${secs}`;
+    }
+
+    function tick() {
+      const now = Date.now();
+      let soonest = null;
+
+      OFFSETS.forEach(offset => {
+        const { targetUtc, targetYear } = getNextNewYearUtcMs(offset);
+        const diff = targetUtc - now;
+
+        if (!soonest || diff < soonest.diff) {
+          soonest = { offset, diff, targetYear };
+        }
+      });
+
+      document.getElementById("offset").textContent =
+        `${offsetLabel(soonest.offset)} reaches New Year ${soonest.targetYear} next`;
+
+      document.getElementById("timer").textContent =
+        formatDHMS(soonest.diff);
+    }
+
+    tick();
+    setInterval(tick, 1000);
+  </script>
+</body>
+</html>
