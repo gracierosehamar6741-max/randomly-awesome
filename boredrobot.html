@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Bored? Idea Bot</title>
+  <style>
+    :root {
+      --bg:#0b0b0b; --panel:rgba(255,255,255,.06); --border:rgba(255,255,255,.10);
+      --text:rgba(255,255,255,.92); --muted:rgba(255,255,255,.68);
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
+    .wrap{max-width:980px;margin:0 auto;padding:26px 16px}
+    h1{margin:0 0 10px;font-size:34px}
+    .muted{color:var(--muted);line-height:1.4}
+    .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:16px;margin-top:14px}
+    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+    @media (max-width:760px){.grid{grid-template-columns:1fr}}
+    label{display:block;font-size:13px;color:var(--muted);margin:0 0 6px}
+    select,input,textarea{
+      width:100%;padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,.14);
+      background:rgba(0,0,0,.35);color:var(--text);outline:none
+    }
+    textarea{min-height:86px;resize:vertical}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    button{
+      padding:12px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.14);
+      background:#fff;color:#000;font-weight:800;cursor:pointer
+    }
+    button:active{transform:translateY(1px)}
+    .chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+    .chip{border:1px solid rgba(255,255,255,.14);background:rgba(0,0,0,.25);padding:6px 10px;border-radius:999px;font-size:12px;color:var(--muted)}
+    .results{display:grid;gap:12px;margin-top:14px}
+    .idea{padding:14px;border-radius:16px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08)}
+    .idea h3{margin:0 0 6px;font-size:18px}
+    .idea .why{color:var(--muted);font-size:13px;margin:0 0 10px}
+    .steps{margin:0;padding-left:18px;color:rgba(255,255,255,.84)}
+    .small{font-size:12px;color:var(--muted);margin-top:10px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Bored? Idea Bot</h1>
+    <div class="muted">Answer 4 quick things and I’ll suggest stuff that actually fits your mood.</div>
+
+    <div class="card">
+      <div class="grid">
+        <div>
+          <label>How much time do you have?</label>
+          <select id="time">
+            <option value="10">10 minutes</option>
+            <option value="30">30 minutes</option>
+            <option value="60">1 hour</option>
+            <option value="120">2+ hours</option>
+          </select>
+        </div>
+        <div>
+          <label>Energy level?</label>
+          <select id="energy">
+            <option value="low">Low (lazy mode)</option>
+            <option value="med" selected>Medium</option>
+            <option value="high">High (let’s go)</option>
+          </select>
+        </div>
+        <div>
+          <label>Budget?</label>
+          <select id="budget">
+            <option value="free" selected>Free</option>
+            <option value="cheap">$ (under $10)</option>
+            <option value="spend">$$ (willing to spend)</option>
+          </select>
+        </div>
+        <div>
+          <label>Where are you?</label>
+          <select id="place">
+            <option value="home" selected>At home</option>
+            <option value="out">Can go out</option>
+            <option value="withKids">With kids</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="margin-top:12px">
+        <label>Optional: what kind of bored are you?</label>
+        <textarea id="note" placeholder="Example: 'brain feels mushy, want something funny' or 'I need to feel productive'"></textarea>
+      </div>
+
+      <div class="row" style="margin-top:12px">
+        <button id="go">Give me ideas</button>
+        <button id="surprise" style="background:rgba(255,255,255,.14);color:#fff">Surprise me</button>
+        <span class="small">Tip: click again for different picks.</span>
+      </div>
+
+      <div class="chips" id="chips"></div>
+    </div>
+
+    <div class="results" id="results"></div>
+  </div>
+
+<script>
+  // A curated idea library with tags so it feels “AI-personalized” without an API.
+  const IDEAS = [
+    { title:"10-minute room reset", tags:["home","low","med","free","10","30"], why:"Tiny win = instant mood boost.", steps:["Set a 10-min timer.","Clear 1 surface only.","Put 10 items away."] },
+    { title:"Snack + mini documentary", tags:["home","low","free","30","60"], why:"Low effort, high entertainment.", steps:["Pick a snack.","Search: 'mini doc 20 minutes'.","No multitasking—just watch."] },
+    { title:"YouTube rabbit hole (with rules)", tags:["home","low","free","10","30","60"], why:"Fun without losing your whole night.", steps:["Pick one topic.","Set a hard timer.","Stop when it ends."] },
+    { title:"Walk + 3-photo challenge", tags:["out","med","free","30","60"], why:"Moves your body and your brain.", steps:["Walk 15–30 mins.","Take 3 photos: pattern, color, something funny.","Send to a friend or keep a folder."] },
+    { title:"Make a ‘future you’ list", tags:["home","low","free","30","60"], why:"Feels productive without being heavy.", steps:["Write 10 things future-you will thank you for.","Pick 1 that takes <10 mins.","Do it now."] },
+    { title:"Cook a ‘one-pan’ meal", tags:["home","med","cheap","60","120"], why:"Food + accomplishment combo.", steps:["Choose: tacos, stir fry, sheet pan.","Put on music.","Clean as you go."] },
+    { title:"Try a new skill: 20-min tutorial", tags:["home","med","free","30","60"], why:"Novelty fights boredom fast.", steps:["Pick: drawing, juggling, chess, coding.","Watch 10 mins.","Practice 10 mins."] },
+    { title:"Family ‘minute-to-win-it’ games", tags:["withKids","high","free","30","60"], why:"Chaos in the best way.", steps:["Pick 3 simple games.","Set 60-second rounds.","Winner chooses next."] },
+    { title:"DIY ‘movie theater’ night", tags:["home","low","cheap","60","120"], why:"Turns boring into an event.", steps:["Pick a movie.","Make popcorn / candy.","Lights off, phones away."] },
+    { title:"Go explore one new place nearby", tags:["out","med","cheap","60","120"], why:"Novel environment = instant reset.", steps:["Choose: coffee shop, park, bookstore.","Stay 30 mins.","Take a picture to remember it."] },
+    { title:"Deep clean ONE weird thing", tags:["home","med","free","30","60"], why:"Satisfying and oddly addictive.", steps:["Pick: fridge shelf, car cupholders, keyboard.","Timer: 25 mins.","Stop when time ends."] },
+    { title:"Make a playlist for a mood", tags:["home","low","free","30","60"], why:"Music is therapy-lite.", steps:["Name the mood.","Pick 15 songs.","Listen while doing something small."] },
+    { title:"Board/card game sprint", tags:["withKids","med","cheap","30","60"], why:"Quick connection, no screens.", steps:["Pick a game under 30 mins.","Winner picks next activity.","Stop while it’s still fun."] },
+    { title:"Workout: 12-minute ladder", tags:["home","high","free","10","30"], why:"Fast endorphins.", steps:["Do 1-2-3… reps (pushups/squats).","Rest 30s between rungs.","Stop at 12 minutes."] },
+    { title:"Call/text someone you miss", tags:["home","low","free","10","30"], why:"Connection beats boredom.", steps:["Pick one person.","Send a simple message.","If they reply, set a 10-min chat."] },
+    { title:"Creative: draw something ridiculous", tags:["home","med","free","30","60"], why:"Playfulness snaps you out of blah.", steps:["Pick a silly prompt.","Draw for 15 mins.","Add color for 5 mins."] },
+  ];
+
+  const $ = (id) => document.getElementById(id);
+
+  function chip(text) {
+    const el = document.createElement("span");
+    el.className = "chip";
+    el.textContent = text;
+    return el;
+  }
+
+  function pickIdeas({time, energy, budget, place, note}) {
+    const timeTag = String(time);
+    const wanted = new Set([timeTag, energy, budget, place]);
+
+    // Simple scoring: match more tags = higher score, plus note-based boosts.
+    const noteText = (note || "").toLowerCase();
+
+    const scored = IDEAS.map(i => {
+      let score = 0;
+      for (const t of i.tags) if (wanted.has(t)) score += 2;
+
+      if (noteText.includes("productive") && i.title.toLowerCase().includes("list")) score += 2;
+      if (noteText.includes("funny") && i.title.toLowerCase().includes("youtube")) score += 2;
+      if (noteText.includes("clean") && i.title.toLowerCase().includes("clean")) score += 2;
+      if (noteText.includes("tired") && i.tags.includes("low")) score += 1;
+
+      // slight randomness so repeated clicks feel “AI-ish”
+      score += Math.random() * 1.2;
+
+      return { ...i, score };
+    });
+
+    scored.sort((a,b) => b.score - a.score);
+    return scored.slice(0, 6);
+  }
+
+  function render(ideas, chipsList) {
+    const root = $("results");
+    root.innerHTML = "";
+
+    $("chips").innerHTML = "";
+    chipsList.forEach(c => $("chips").appendChild(chip(c)));
+
+    for (const i of ideas) {
+      const el = document.createElement("div");
+      el.className = "idea";
+
+      const h = document.createElement("h3");
+      h.textContent = i.title;
+
+      const why = document.createElement("div");
+      why.className = "why";
+      why.textContent = i.why;
+
+      const ul = document.createElement("ol");
+      ul.className = "steps";
+      i.steps.forEach(s => {
+        const li = document.createElement("li");
+        li.textContent = s;
+        ul.appendChild(li);
+      });
+
+      el.appendChild(h);
+      el.appendChild(why);
+      el.appendChild(ul);
+      root.appendChild(el);
+    }
+  }
+
+  function run(surprise=false) {
+    const time = parseInt($("time").value, 10);
+    const energy = $("energy").value;
+    const budget = $("budget").value;
+    const place = $("place").value;
+    const note = $("note").value;
+
+    const ideas = pickIdeas({ time, energy, budget, place, note });
+
+    const chipsList = [
+      `Time: ${time}m`,
+      `Energy: ${energy}`,
+      `Budget: ${budget}`,
+      `Place: ${place}`,
+      note.trim() ? `Mood: ${note.trim().slice(0, 50)}${note.trim().length>50?"…":""}` : "Mood: (not specified)"
+    ];
+
+    render(ideas, chipsList);
+
+    if (surprise) {
+      // scroll to results on mobile
+      $("results").scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
+
+  $("go").addEventListener("click", () => run(false));
+  $("surprise").addEventListener("click", () => run(true));
+
+  // first render
+  run(false);
+</script>
+</body>
+</html>
